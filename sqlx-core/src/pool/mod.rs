@@ -93,6 +93,8 @@ pub use self::connection::PoolConnection;
 pub(crate) use self::maybe::MaybePoolConnection;
 pub use self::options::{PoolConnectionMetadata, PoolOptions};
 
+pub use inner::{reset_sum_duration, get_sum_duration};
+
 /// An asynchronous pool of SQLx database connections.
 ///
 /// Create a pool with [Pool::connect] or [Pool::connect_with] and then call [Pool::acquire]

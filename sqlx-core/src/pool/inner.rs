@@ -19,6 +19,11 @@ use futures_util::future::{self};
 use futures_util::FutureExt;
 use std::time::{Duration, Instant};
 
+
+use std::sync::atomic::AtomicU64;
+
+static mut SUM_DURATION: AtomicU64 = AtomicU64::new(0);
+
 pub(crate) struct PoolInner<DB: Database> {
     pub(super) connect_options: <DB::Connection as Connection>::Options,
     pub(super) idle_conns: ArrayQueue<Idle<DB>>,
@@ -231,6 +236,8 @@ impl<DB: Database> PoolInner<DB> {
             return Err(Error::PoolClosed);
         }
 
+        let start_at = Instant::now();
+
         let deadline = Instant::now() + self.options.acquire_timeout;
 
         sqlx_rt::timeout(
@@ -248,7 +255,12 @@ impl<DB: Database> PoolInner<DB> {
                         Ok(conn) => match check_idle_conn(conn, &self.options).await {
 
                             // All good!
-                            Ok(live) => return Ok(live),
+                            Ok(live) => {
+                                let spend = Instant::now().duration_since(start_at).as_millis() as u64;
+
+                                unsafe { SUM_DURATION.fetch_add(spend, Ordering::SeqCst); }
+                                return Ok(live);
+                            },
 
                             // if the connection isn't usable for one reason or another,
                             // we get the `DecrementSizeGuard` back to open a new one
@@ -269,7 +281,13 @@ impl<DB: Database> PoolInner<DB> {
                     };
 
                     // Attempt to connect...
-                    return self.connect(deadline, guard).await;
+                    let res = self.connect(deadline, guard).await;
+
+                    let spend = Instant::now().duration_since(start_at).as_millis() as u64;
+                    unsafe { SUM_DURATION.fetch_add(spend, Ordering::SeqCst); }
+
+                    return res;
+
                 }
             }
         )
@@ -572,4 +590,13 @@ impl<DB: Database> Drop for DecrementSizeGuard<DB> {
             self.pool.semaphore.release(1);
         }
     }
+}
+
+
+pub fn reset_sum_duration() {
+    unsafe { SUM_DURATION.store(0, Ordering::SeqCst) }
+}
+
+pub fn get_sum_duration() -> u64 {
+    unsafe { SUM_DURATION.load(Ordering::SeqCst) }
 }
