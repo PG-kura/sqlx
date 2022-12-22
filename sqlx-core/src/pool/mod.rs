@@ -93,7 +93,7 @@ pub use self::connection::PoolConnection;
 pub(crate) use self::maybe::MaybePoolConnection;
 pub use self::options::{PoolConnectionMetadata, PoolOptions};
 
-pub use inner::{reset_sum_duration, get_sum_duration};
+pub use inner::{reset_sum_duration, get_max_duration};
 
 /// An asynchronous pool of SQLx database connections.
 ///

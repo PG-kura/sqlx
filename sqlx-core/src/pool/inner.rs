@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use std::sync::atomic::AtomicU64;
 
-static mut SUM_DURATION: AtomicU64 = AtomicU64::new(0);
+static mut MAX_DURATION: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) struct PoolInner<DB: Database> {
     pub(super) connect_options: <DB::Connection as Connection>::Options,
@@ -258,7 +258,7 @@ impl<DB: Database> PoolInner<DB> {
                             Ok(live) => {
                                 let spend = Instant::now().duration_since(start_at).as_millis() as u64;
 
-                                unsafe { SUM_DURATION.fetch_add(spend, Ordering::SeqCst); }
+                                unsafe { MAX_DURATION.fetch_max(spend, Ordering::SeqCst); }
                                 return Ok(live);
                             },
 
@@ -284,7 +284,7 @@ impl<DB: Database> PoolInner<DB> {
                     let res = self.connect(deadline, guard).await;
 
                     let spend = Instant::now().duration_since(start_at).as_millis() as u64;
-                    unsafe { SUM_DURATION.fetch_add(spend, Ordering::SeqCst); }
+                    unsafe { MAX_DURATION.fetch_max(spend, Ordering::SeqCst); }
 
                     return res;
 
@@ -594,9 +594,9 @@ impl<DB: Database> Drop for DecrementSizeGuard<DB> {
 
 
 pub fn reset_sum_duration() {
-    unsafe { SUM_DURATION.store(0, Ordering::SeqCst) }
+    unsafe { MAX_DURATION.store(0, Ordering::SeqCst) }
 }
 
-pub fn get_sum_duration() -> u64 {
-    unsafe { SUM_DURATION.load(Ordering::SeqCst) }
+pub fn get_max_duration() -> u64 {
+    unsafe { MAX_DURATION.load(Ordering::SeqCst) }
 }
